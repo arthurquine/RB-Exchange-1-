@@ -1,0 +1,35 @@
+{
+  "cli": {
+    "version": ">= 5.9.1",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "env": {
+        "EXPO_NO_TELEMETRY": "1",
+        "EAS_NO_VCS": "1"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease",
+        "withoutCredentials": true
+      },
+      "distribution": "internal",
+      "developmentClient": false
+    },
+    "production": {
+      "env": {
+        "EXPO_NO_TELEMETRY": "1",
+        "EAS_NO_VCS": "1"
+      },
+      "android": {
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease"
+      },
+      "distribution": "store"
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
