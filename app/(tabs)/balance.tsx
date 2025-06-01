@@ -35,12 +35,13 @@ export default function BalanceScreen() {
         lastRateUSD: null,
       };
 
-      const amount = transaction.amount * transaction.rate;
+      // Calculate amount in DZD based on transaction type
+      const amountInDZD = transaction.amount * transaction.rate;
 
       if (transaction.type === 'buy') {
-        currentBalance.buys += amount;
+        currentBalance.buys += transaction.amount; // Store original amount
       } else {
-        currentBalance.sells += amount;
+        currentBalance.sells += transaction.amount; // Store original amount
       }
 
       // Update last known rates
@@ -56,15 +57,12 @@ export default function BalanceScreen() {
     return Array.from(balanceMap.entries()).map(([code, data]) => ({
       code,
       ...data,
-      netTotal: data.buys - data.sells,
+      netTotal: (data.buys - data.sells) * (data.lastRateEUR || data.lastRateUSD), // Convert to DZD
     }));
   }, [transactions]);
 
   // Calculate total net balance across all currencies
   const totalNetBalance = balances.reduce((total, balance) => total + balance.netTotal, 0);
-
-  // Get the last known rate for the current display currency
-  const lastRate = getLastRate(displayCurrency === 'USD' ? 'USD' : 'EUR');
 
   const toggleDisplayCurrency = () => {
     setDisplayCurrency(current => {
@@ -95,21 +93,13 @@ export default function BalanceScreen() {
         <View style={styles.balanceRow}>
           <Text style={styles.balanceLabel}>Total Buys:</Text>
           <Text style={styles.balanceValue}>
-            {displayCurrency === 'DZD' 
-              ? formatCurrency(item.buys, 'DZD')
-              : convertAmount(item.buys, displayCurrency) !== null
-                ? formatCurrency(convertAmount(item.buys, displayCurrency), displayCurrency)
-                : '-- ' + displayCurrency}
+            {formatCurrency(item.buys, item.targetCurrency || displayCurrency)}
           </Text>
         </View>
         <View style={styles.balanceRow}>
           <Text style={styles.balanceLabel}>Total Sells:</Text>
           <Text style={styles.balanceValue}>
-            {displayCurrency === 'DZD'
-              ? formatCurrency(item.sells, 'DZD')
-              : convertAmount(item.sells, displayCurrency) !== null
-                ? formatCurrency(convertAmount(item.sells, displayCurrency), displayCurrency)
-                : '-- ' + displayCurrency}
+            {formatCurrency(item.sells, item.targetCurrency || displayCurrency)}
           </Text>
         </View>
         <View style={[styles.balanceRow, styles.netTotalRow]}>
@@ -118,11 +108,7 @@ export default function BalanceScreen() {
             styles.netTotalValue,
             item.netTotal > 0 ? styles.positive : styles.negative
           ]}>
-            {displayCurrency === 'DZD'
-              ? formatCurrency(item.netTotal, 'DZD')
-              : convertAmount(item.netTotal, displayCurrency) !== null
-                ? formatCurrency(convertAmount(item.netTotal, displayCurrency), displayCurrency)
-                : '-- ' + displayCurrency}
+            {formatCurrency(item.buys - item.sells, item.targetCurrency || displayCurrency)}
           </Text>
         </View>
       </View>
@@ -141,9 +127,9 @@ export default function BalanceScreen() {
           >
             <View>
               <Text style={styles.currencySelectorLabel}>Display Currency:</Text>
-              {displayCurrency !== 'DZD' && lastRate && (
+              {displayCurrency !== 'DZD' && getLastRate(displayCurrency) && (
                 <Text style={styles.exchangeRate}>
-                  1 {displayCurrency} = {lastRate} DZD
+                  1 {displayCurrency} = {getLastRate(displayCurrency)} DZD
                 </Text>
               )}
             </View>
