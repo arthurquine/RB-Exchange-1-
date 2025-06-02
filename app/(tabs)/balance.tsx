@@ -11,28 +11,31 @@ import { ArrowRightLeft } from 'lucide-react-native';
 
 export default function BalanceScreen() {
   const { transactions } = useTransactionHistory();
-  const [displayCurrency, setDisplayCurrency] = useState<'DZD' | 'USD' | 'EUR'>('DZD');
+  const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'EUR'>('EUR');
 
   // Calculate balances
   const balances = React.useMemo(() => {
     const balanceMap = new Map();
 
     transactions.forEach(transaction => {
-      const key = transaction.currencyCode;
-      const currentBalance = balanceMap.get(key) || {
-        buys: 0,
-        sells: 0,
-        currency: CURRENCIES.find(c => c.code === key),
-        targetCurrency: transaction.targetCurrency,
-      };
+      // Only process transactions in the selected display currency
+      if (transaction.targetCurrency === displayCurrency) {
+        const key = transaction.currencyCode;
+        const currentBalance = balanceMap.get(key) || {
+          buys: 0,
+          sells: 0,
+          currency: CURRENCIES.find(c => c.code === key),
+          targetCurrency: transaction.targetCurrency,
+        };
 
-      if (transaction.type === 'buy') {
-        currentBalance.buys += transaction.amount;
-      } else {
-        currentBalance.sells += transaction.amount;
+        if (transaction.type === 'buy') {
+          currentBalance.buys += transaction.amount;
+        } else {
+          currentBalance.sells += transaction.amount;
+        }
+
+        balanceMap.set(key, currentBalance);
       }
-
-      balanceMap.set(key, currentBalance);
     });
 
     return Array.from(balanceMap.entries()).map(([code, data]) => ({
@@ -42,22 +45,18 @@ export default function BalanceScreen() {
         t.currencyCode === code && t.targetCurrency === data.targetCurrency
       )?.rate || 0),
     }));
+  }, [transactions, displayCurrency]);
+
+  // Calculate total net balance in DZD for all currencies
+  const totalNetBalanceDZD = React.useMemo(() => {
+    return transactions.reduce((total, transaction) => {
+      const amount = transaction.type === 'buy' ? transaction.amount : -transaction.amount;
+      return total + (amount * transaction.rate);
+    }, 0);
   }, [transactions]);
 
-  // Filter balances based on display currency
-  const filteredBalances = balances.filter(balance => balance.targetCurrency === displayCurrency);
-
-  // Calculate total net balance for displayed currency
-  const totalNetBalance = filteredBalances.reduce((total, balance) => total + balance.netTotal, 0);
-
   const toggleDisplayCurrency = () => {
-    setDisplayCurrency(current => {
-      switch (current) {
-        case 'DZD': return 'USD';
-        case 'USD': return 'EUR';
-        case 'EUR': return 'DZD';
-      }
-    });
+    setDisplayCurrency(current => current === 'USD' ? 'EUR' : 'USD');
   };
 
   const renderBalanceItem = ({ item }) => (
@@ -73,13 +72,13 @@ export default function BalanceScreen() {
         <View style={styles.balanceRow}>
           <Text style={styles.balanceLabel}>Total Buys:</Text>
           <Text style={styles.balanceValue}>
-            {formatCurrency(item.buys, item.targetCurrency)}
+            {formatCurrency(item.buys, displayCurrency)}
           </Text>
         </View>
         <View style={styles.balanceRow}>
           <Text style={styles.balanceLabel}>Total Sells:</Text>
           <Text style={styles.balanceValue}>
-            {formatCurrency(item.sells, item.targetCurrency)}
+            {formatCurrency(item.sells, displayCurrency)}
           </Text>
         </View>
         <View style={[styles.balanceRow, styles.netTotalRow]}>
@@ -88,7 +87,7 @@ export default function BalanceScreen() {
             styles.netTotalValue,
             item.netTotal > 0 ? styles.positive : styles.negative
           ]}>
-            {formatCurrency(item.buys - item.sells, item.targetCurrency)}
+            {formatCurrency(item.buys - item.sells, displayCurrency)}
           </Text>
         </View>
       </View>
@@ -112,26 +111,24 @@ export default function BalanceScreen() {
             </View>
           </TouchableOpacity>
 
-          {filteredBalances.length > 0 ? (
-            <>
-              <View style={styles.totalBalanceCard}>
-                <Text style={styles.totalBalanceLabel}>Total Net Balance (DZD):</Text>
-                <Text style={[
-                  styles.totalBalanceValue,
-                  totalNetBalance > 0 ? styles.positive : styles.negative
-                ]}>
-                  {formatCurrency(totalNetBalance, 'DZD')}
-                </Text>
-              </View>
+          <View style={styles.totalBalanceCard}>
+            <Text style={styles.totalBalanceLabel}>Total Net Balance (DZD):</Text>
+            <Text style={[
+              styles.totalBalanceValue,
+              totalNetBalanceDZD > 0 ? styles.positive : styles.negative
+            ]}>
+              {formatCurrency(totalNetBalanceDZD, 'DZD')}
+            </Text>
+          </View>
 
-              <FlatList
-                data={filteredBalances}
-                renderItem={renderBalanceItem}
-                keyExtractor={item => item.code}
-                contentContainerStyle={styles.content}
-                showsVerticalScrollIndicator={false}
-              />
-            </>
+          {balances.length > 0 ? (
+            <FlatList
+              data={balances}
+              renderItem={renderBalanceItem}
+              keyExtractor={item => item.code}
+              contentContainerStyle={styles.content}
+              showsVerticalScrollIndicator={false}
+            />
           ) : (
             <View style={styles.noTransactionsContainer}>
               <Text style={styles.noTransactionsText}>
