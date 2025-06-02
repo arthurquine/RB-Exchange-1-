@@ -13,6 +13,27 @@ export default function BalanceScreen() {
   const { transactions } = useTransactionHistory();
   const [displayCurrency, setDisplayCurrency] = useState<'USD' | 'EUR'>('EUR');
 
+  // Calculate average exchange rates for EUR and USD
+  const averageRates = React.useMemo(() => {
+    const rates = {
+      EUR: [] as number[],
+      USD: [] as number[],
+    };
+
+    transactions.forEach(transaction => {
+      if (transaction.targetCurrency === 'EUR') {
+        rates.EUR.push(transaction.rate);
+      } else if (transaction.targetCurrency === 'USD') {
+        rates.USD.push(transaction.rate);
+      }
+    });
+
+    return {
+      EUR: rates.EUR.length > 0 ? rates.EUR.reduce((a, b) => a + b) / rates.EUR.length : 0,
+      USD: rates.USD.length > 0 ? rates.USD.reduce((a, b) => a + b) / rates.USD.length : 0,
+    };
+  }, [transactions]);
+
   // Calculate balances
   const balances = React.useMemo(() => {
     const balanceMap = new Map();
@@ -47,13 +68,20 @@ export default function BalanceScreen() {
     }));
   }, [transactions, displayCurrency]);
 
-  // Calculate total net balance in DZD for all currencies
-  const totalNetBalanceDZD = React.useMemo(() => {
-    return transactions.reduce((total, transaction) => {
+  // Calculate total net balance in DZD and convert to selected currency
+  const totalNetBalance = React.useMemo(() => {
+    const totalDZD = transactions.reduce((total, transaction) => {
       const amount = transaction.type === 'buy' ? transaction.amount : -transaction.amount;
       return total + (amount * transaction.rate);
     }, 0);
-  }, [transactions]);
+
+    const rate = displayCurrency === 'EUR' ? averageRates.EUR : averageRates.USD;
+    
+    return {
+      DZD: totalDZD,
+      [displayCurrency]: rate ? totalDZD / rate : 0
+    };
+  }, [transactions, displayCurrency, averageRates]);
 
   const toggleDisplayCurrency = () => {
     setDisplayCurrency(current => current === 'USD' ? 'EUR' : 'USD');
@@ -112,13 +140,23 @@ export default function BalanceScreen() {
           </TouchableOpacity>
 
           <View style={styles.totalBalanceCard}>
-            <Text style={styles.totalBalanceLabel}>Total Net Balance (DZD):</Text>
-            <Text style={[
-              styles.totalBalanceValue,
-              totalNetBalanceDZD > 0 ? styles.positive : styles.negative
-            ]}>
-              {formatCurrency(totalNetBalanceDZD, 'DZD')}
-            </Text>
+            <Text style={styles.totalBalanceLabel}>Total Net Balance:</Text>
+            <View style={styles.totalBalanceValues}>
+              <Text style={[
+                styles.totalBalanceValue,
+                totalNetBalance.DZD > 0 ? styles.positive : styles.negative
+              ]}>
+                {formatCurrency(totalNetBalance.DZD, 'DZD')}
+              </Text>
+              {averageRates[displayCurrency] > 0 && (
+                <Text style={[
+                  styles.totalBalanceValueSecondary,
+                  totalNetBalance[displayCurrency] > 0 ? styles.positive : styles.negative
+                ]}>
+                  {formatCurrency(totalNetBalance[displayCurrency], displayCurrency)}
+                </Text>
+              )}
+            </View>
           </View>
 
           {balances.length > 0 ? (
@@ -193,9 +231,17 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: 4,
   },
+  totalBalanceValues: {
+    gap: 4,
+  },
   totalBalanceValue: {
     fontFamily: 'Poppins-Bold',
     fontSize: 24,
+    color: COLORS.text,
+  },
+  totalBalanceValueSecondary: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 18,
     color: COLORS.text,
   },
   content: {
