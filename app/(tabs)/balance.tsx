@@ -44,8 +44,11 @@ export default function BalanceScreen() {
     }));
   }, [transactions]);
 
-  // Calculate total net balance across all currencies in DZD
-  const totalNetBalance = balances.reduce((total, balance) => total + balance.netTotal, 0);
+  // Filter balances based on display currency
+  const filteredBalances = balances.filter(balance => balance.targetCurrency === displayCurrency);
+
+  // Calculate total net balance for displayed currency
+  const totalNetBalance = filteredBalances.reduce((total, balance) => total + balance.netTotal, 0);
 
   const toggleDisplayCurrency = () => {
     setDisplayCurrency(current => {
@@ -102,30 +105,40 @@ export default function BalanceScreen() {
             style={styles.currencySelector}
             onPress={toggleDisplayCurrency}
           >
-            <Text style={styles.currencySelectorLabel}>Display Currency:</Text>
+            <Text style={styles.currencySelectorLabel}>Show transactions in:</Text>
             <View style={styles.currencySelectorButton}>
               <Text style={styles.currencySelectorText}>{displayCurrency}</Text>
               <ArrowRightLeft size={16} color={COLORS.primary} />
             </View>
           </TouchableOpacity>
 
-          <View style={styles.totalBalanceCard}>
-            <Text style={styles.totalBalanceLabel}>Total Net Balance (DZD):</Text>
-            <Text style={[
-              styles.totalBalanceValue,
-              totalNetBalance > 0 ? styles.positive : styles.negative
-            ]}>
-              {formatCurrency(totalNetBalance, 'DZD')}
-            </Text>
-          </View>
+          {filteredBalances.length > 0 ? (
+            <>
+              <View style={styles.totalBalanceCard}>
+                <Text style={styles.totalBalanceLabel}>Total Net Balance (DZD):</Text>
+                <Text style={[
+                  styles.totalBalanceValue,
+                  totalNetBalance > 0 ? styles.positive : styles.negative
+                ]}>
+                  {formatCurrency(totalNetBalance, 'DZD')}
+                </Text>
+              </View>
 
-          <FlatList
-            data={balances}
-            renderItem={renderBalanceItem}
-            keyExtractor={item => item.code}
-            contentContainerStyle={styles.content}
-            showsVerticalScrollIndicator={false}
-          />
+              <FlatList
+                data={filteredBalances}
+                renderItem={renderBalanceItem}
+                keyExtractor={item => item.code}
+                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+              />
+            </>
+          ) : (
+            <View style={styles.noTransactionsContainer}>
+              <Text style={styles.noTransactionsText}>
+                No transactions in {displayCurrency}
+              </Text>
+            </View>
+          )}
         </>
       ) : (
         <EmptyState
@@ -264,5 +277,17 @@ const styles = StyleSheet.create({
   },
   negative: {
     color: COLORS.error,
+  },
+  noTransactionsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  noTransactionsText: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
   },
 });
