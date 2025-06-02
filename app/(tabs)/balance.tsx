@@ -13,14 +13,6 @@ export default function BalanceScreen() {
   const { transactions } = useTransactionHistory();
   const [displayCurrency, setDisplayCurrency] = useState<'DZD' | 'USD' | 'EUR'>('DZD');
 
-  // Get the last used rate for each target currency
-  const getLastRate = (targetCurrency: 'EUR' | 'USD') => {
-    const lastTransaction = [...transactions]
-      .reverse()
-      .find(t => t.targetCurrency === targetCurrency);
-    return lastTransaction?.rate || null;
-  };
-
   // Calculate balances
   const balances = React.useMemo(() => {
     const balanceMap = new Map();
@@ -31,24 +23,13 @@ export default function BalanceScreen() {
         buys: 0,
         sells: 0,
         currency: CURRENCIES.find(c => c.code === key),
-        lastRateEUR: null,
-        lastRateUSD: null,
+        targetCurrency: transaction.targetCurrency,
       };
 
-      // Calculate amount in DZD based on transaction type
-      const amountInDZD = transaction.amount * transaction.rate;
-
       if (transaction.type === 'buy') {
-        currentBalance.buys += transaction.amount; // Store original amount
+        currentBalance.buys += transaction.amount;
       } else {
-        currentBalance.sells += transaction.amount; // Store original amount
-      }
-
-      // Update last known rates
-      if (transaction.targetCurrency === 'EUR') {
-        currentBalance.lastRateEUR = transaction.rate;
-      } else if (transaction.targetCurrency === 'USD') {
-        currentBalance.lastRateUSD = transaction.rate;
+        currentBalance.sells += transaction.amount;
       }
 
       balanceMap.set(key, currentBalance);
@@ -57,11 +38,13 @@ export default function BalanceScreen() {
     return Array.from(balanceMap.entries()).map(([code, data]) => ({
       code,
       ...data,
-      netTotal: (data.buys - data.sells) * (data.lastRateEUR || data.lastRateUSD), // Convert to DZD
+      netTotal: (data.buys - data.sells) * (transactions.find(t => 
+        t.currencyCode === code && t.targetCurrency === data.targetCurrency
+      )?.rate || 0),
     }));
   }, [transactions]);
 
-  // Calculate total net balance across all currencies
+  // Calculate total net balance across all currencies in DZD
   const totalNetBalance = balances.reduce((total, balance) => total + balance.netTotal, 0);
 
   const toggleDisplayCurrency = () => {
@@ -72,12 +55,6 @@ export default function BalanceScreen() {
         case 'EUR': return 'DZD';
       }
     });
-  };
-
-  const convertAmount = (amount: number, displayCurrency: 'DZD' | 'USD' | 'EUR') => {
-    if (displayCurrency === 'DZD') return amount;
-    const rate = getLastRate(displayCurrency);
-    return rate ? amount / rate : null;
   };
 
   const renderBalanceItem = ({ item }) => (
@@ -93,13 +70,13 @@ export default function BalanceScreen() {
         <View style={styles.balanceRow}>
           <Text style={styles.balanceLabel}>Total Buys:</Text>
           <Text style={styles.balanceValue}>
-            {formatCurrency(item.buys, item.targetCurrency || displayCurrency)}
+            {formatCurrency(item.buys, item.targetCurrency)}
           </Text>
         </View>
         <View style={styles.balanceRow}>
           <Text style={styles.balanceLabel}>Total Sells:</Text>
           <Text style={styles.balanceValue}>
-            {formatCurrency(item.sells, item.targetCurrency || displayCurrency)}
+            {formatCurrency(item.sells, item.targetCurrency)}
           </Text>
         </View>
         <View style={[styles.balanceRow, styles.netTotalRow]}>
@@ -108,7 +85,7 @@ export default function BalanceScreen() {
             styles.netTotalValue,
             item.netTotal > 0 ? styles.positive : styles.negative
           ]}>
-            {formatCurrency(item.buys - item.sells, item.targetCurrency || displayCurrency)}
+            {formatCurrency(item.buys - item.sells, item.targetCurrency)}
           </Text>
         </View>
       </View>
@@ -125,14 +102,7 @@ export default function BalanceScreen() {
             style={styles.currencySelector}
             onPress={toggleDisplayCurrency}
           >
-            <View>
-              <Text style={styles.currencySelectorLabel}>Display Currency:</Text>
-              {displayCurrency !== 'DZD' && getLastRate(displayCurrency) && (
-                <Text style={styles.exchangeRate}>
-                  1 {displayCurrency} = {getLastRate(displayCurrency)} DZD
-                </Text>
-              )}
-            </View>
+            <Text style={styles.currencySelectorLabel}>Display Currency:</Text>
             <View style={styles.currencySelectorButton}>
               <Text style={styles.currencySelectorText}>{displayCurrency}</Text>
               <ArrowRightLeft size={16} color={COLORS.primary} />
@@ -140,16 +110,12 @@ export default function BalanceScreen() {
           </TouchableOpacity>
 
           <View style={styles.totalBalanceCard}>
-            <Text style={styles.totalBalanceLabel}>Total Net Balance:</Text>
+            <Text style={styles.totalBalanceLabel}>Total Net Balance (DZD):</Text>
             <Text style={[
               styles.totalBalanceValue,
               totalNetBalance > 0 ? styles.positive : styles.negative
             ]}>
-              {displayCurrency === 'DZD'
-                ? formatCurrency(totalNetBalance, 'DZD')
-                : convertAmount(totalNetBalance, displayCurrency) !== null
-                  ? formatCurrency(convertAmount(totalNetBalance, displayCurrency), displayCurrency)
-                  : '-- ' + displayCurrency}
+              {formatCurrency(totalNetBalance, 'DZD')}
             </Text>
           </View>
 
@@ -190,12 +156,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     fontSize: 14,
     color: COLORS.textSecondary,
-  },
-  exchangeRate: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 2,
   },
   currencySelectorButton: {
     flexDirection: 'row',
